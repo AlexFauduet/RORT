@@ -1,0 +1,11 @@
+Node_1 Node_2 Capacity_node1 Capacity_node2 Latency_arc node_cost
+nb_nodes 4
+nb_arcs 8
+0 1 2 2 1
+0 3 2 2 1
+1 0 2 2 1
+1 2 2 2 1
+2 1 2 2 1
+2 3 2 2 1
+3 2 2 2 1
+3 0 2 2 1
