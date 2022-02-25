@@ -2,11 +2,11 @@ using JuMP
 
 export get_data
 
-function get_data(file_name :: String)
+function get_data(file_name :: String,nb_functions ::Int64)
 	if isfile(file_name)
         file=open(file_name)
 		data = readlines(file)
-        println(data)
+        #println(data)
         if occursin("Affinity.txt",file_name)
             nb_commodities = length(data)-1
             Affinity = []
@@ -30,6 +30,23 @@ function get_data(file_name :: String)
             return (nb_commodities,Affinity)
         end
 
+        if occursin("Commod.txt",file_name)
+            nb_commodities = length(data)
+            Fct_commod = Array{Int64}(undef,nb_commodities,nb_functions)
+            for i in 1:nb_commodities
+                tab = split(data[i]," ")
+                #print(tab)
+                for j in 1:length(tab)-1
+                    Fct_commod[i,j] = parse(Int64,tab[j])
+                end
+                for j in length(tab):nb_functions
+                    Fct_commod[i,j] = -1
+                end
+            end
+            close(file)
+            return (nb_commodities,Fct_commod)
+        end
+
         if occursin("Commodity.txt",file_name)
             nb_commodities = parse(Int64,data[2][16:end])
             Commodity = Array{Int64}(undef,nb_commodities,4)
@@ -43,20 +60,7 @@ function get_data(file_name :: String)
             return (nb_commodities,Commodity)
         end
 
-        if occursin("Commod.txt",file_name)
-            nb_commodities = length(data)-1
-            Fct_commod = Array{Int64,2}(zeros(nb_commodities,nb_func))
-            for i in 1:nb_commodities
-                line = parse.(Int64, split(readline(file), " "))
-                cpt=1
-                for f in line
-                    Fct_commod[i,f+1]=cpt
-                    cpt=cpt+1
-                end
-            end
-            close(file)
-            return (cpt,Fct_commod)
-        end
+        
 
         if occursin("Functions.txt",file_name)
             nb_functions = parse(Int64,data[2][14:end])
@@ -92,31 +96,68 @@ function get_data(file_name :: String)
 	return "fichier inexistant"
 end
 
-function write_sol(algo, file, isOptimal, traj, sol, cpt , sec,obj)
-	println("isOptimal : ", isOptimal)
-	println(" traj : ", traj)
-	println("obj : ",obj)
-	println(" sol : ", sol)
-	println("  cpt: ",cpt )
-	println(" sec : ", sec)
-	output_folder = "../results/"*algo
-	println("output_folder : ",output_folder)
-	output_file = "../results/"*algo*"/"*file*"_score_"*string(round(obj,digits=3))*"_"*string(sec)*".txt"
-	println("output_file : ",output_file)
-	if !isdir(output_folder)
-            mkdir(output_folder)
-        end
-	if !isfile(output_file)
-		f = open(output_file, "w")
-		println(f, "Valeur solution optimale trouvée :", round(obj,digits=3))
-		println(f, "Solution optimale trouvée : ",isOptimal)
-		println(f, "Valeur de la solution : ",traj)
-		println(f, "Temps : ",sec)
-		println(f, "Solution : ",sol )
-		println(f, "Nombre de branchements : ",cpt )
-		close(f)
-    end	
-end
 
+
+#en ecriture...
+
+function write_results(fileName,e,x_ikf)
+  
+  cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
+  
+  if !isfile("./Resultats/"*fileName*".txt") 
+		touch("./Resultats/"*fileName*".txt")
+	end
+	file = open("./Resultats/"*fileName*".txt","w")
+
+	for k in 1:nb_commodities
+    size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
+		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
+		write(file,"commod "*string(k)*'\n')
+		
+    #write source to first function
+		s=commodity[k,1]
+		p= findall( y -> y == 1., x_ikf[:,k,tab_fk[1]])[1,1,1]
+		sol=string(s)
+		i=s
+		while i!=p
+			i=findall(y->y==1., e[i,:,k,tab_fk[1]])[1,1,1,1]
+			sol=sol*" "*string(i)
+		end
+		sol=sol*'\n'
+		write(file,sol)
+		
+    #write function to function
+		for f in tab_fk[2:end]
+			s=p
+			p= findall( y -> y == 1., x_ikf[:,k,f])[1,1,1]
+			sol=string(s)
+			i=s
+			while i!=p
+				i=findall(y->y==1., e[i,:,k,f])[1,1,1,1]
+				sol=sol*" "*string(i)
+			end
+			sol=sol*'\n'
+			write(file,sol)
+		end
+    
+    #write function to sink
+    s=p
+    p=commodity[k,2]
+    sol=string(s)
+    i=s
+    while i!=p
+      i=findall(y->y==1., e[i,:,k,end])[1,1,1,1]
+      sol=sol*" "*string(i)
+    end
+    sol=sol*'\n'
+    write(file,sol)
+	end
+	
+	close(file)
+end
 #nb_nodes,nb_arcs,Arc=get_data("../instances/grille2x3_Graph.txt")
-print(get_data("../instances/grille2x3_Fct_Commod.txt"))
+nb_commodities,Fct_commod = get_data("../instances/grille2x3_Fct_Commod.txt",2)
+#print(get_data("../instances/grille2x3_Fct_Commod.txt",2))
+
+println("nb_commodities = ", nb_commodities)
+println("fct = " ,Fct_commod)
