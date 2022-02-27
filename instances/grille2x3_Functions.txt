@@ -1,0 +1,4 @@
+capacity cost_by_node
+nb_functions 2 
+6 1 1 1 9 1 7 4 7 
+1 9 4 8 8 9 4 6 4 
