@@ -1,0 +1,59 @@
+
+
+#en ecriture...
+
+function write_results(fileName,e,x_ikf)
+  
+  cout_ouverture, Fct_commod, func_cost, func_capacity, nb_nodes, nb_arcs, nb_commodities, latency, node_capacity, commodity, nb_func, exclusion = read_instance(fileName)
+  
+  if !isfile("./Resultats/"*fileName*".txt") 
+		touch("./Resultats/"*fileName*".txt")
+	end
+	file = open("./Resultats/"*fileName*".txt","w")
+
+	for k in 1:nb_commodities
+    size_fk=length( findall( y -> y > 0, Fct_commod[k,:]))
+		tab_fk=sortperm( Fct_commod[k,:])[1:size_fk]
+		write(file,"commod "*string(k)*'\n')
+		
+    #write source to first function
+		s=commodity[k,1]
+		p= findall( y -> y == 1., x_ikf[:,k,tab_fk[1]])[1,1,1]
+		sol=string(s)
+		i=s
+		while i!=p
+			i=findall(y->y==1., e[i,:,k,tab_fk[1]])[1,1,1,1]
+			sol=sol*" "*string(i)
+		end
+		sol=sol*'\n'
+		write(file,sol)
+		
+    #write function to function
+		for f in tab_fk[2:end]
+			s=p
+			p= findall( y -> y == 1., x_ikf[:,k,f])[1,1,1]
+			sol=string(s)
+			i=s
+			while i!=p
+				i=findall(y->y==1., e[i,:,k,f])[1,1,1,1]
+				sol=sol*" "*string(i)
+			end
+			sol=sol*'\n'
+			write(file,sol)
+		end
+    
+    #write function to sink
+    s=p
+    p=commodity[k,2]
+    sol=string(s)
+    i=s
+    while i!=p
+      i=findall(y->y==1., e[i,:,k,end])[1,1,1,1]
+      sol=sol*" "*string(i)
+    end
+    sol=sol*'\n'
+    write(file,sol)
+	end
+	
+	close(file)
+end
