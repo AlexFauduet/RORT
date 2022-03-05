@@ -24,7 +24,7 @@ function get_data(file_name :: String,nb_functions ::Int64)
         
        
 
-        if occursin("Commod.txt",file_name)
+        if occursin("commod.txt",file_name)
             nb_commodities = length(data)
             #println("nb_functions",nb_functions)
             Fct_commod = Array{Int64}(undef,nb_commodities,nb_functions)
@@ -44,11 +44,11 @@ function get_data(file_name :: String,nb_functions ::Int64)
 
         if occursin("Commodity.txt",file_name)
             nb_commodities = parse(Int64,data[2][16:end])
-            Commodity = Array{Int64}(undef,nb_commodities,4)
+            Commodity = Array{Float64}(undef,nb_commodities,4)
             for i in 1:nb_commodities
                 tab = split(data[2+i]," ")
                 for j in 1:4
-                    Commodity[i,j] = parse(Int64,tab[j])
+                    Commodity[i,j] = parse(Float64,tab[j])
                 end
             end
             close(file)
@@ -75,16 +75,15 @@ function get_data(file_name :: String,nb_functions ::Int64)
             nb_nodes = parse(Int64,data[2][10:end])
             nb_arcs  = parse(Int64,data[3][9:end])
             #println(nb_arcs)
-            Arc = Array{Int64}(undef,nb_arcs,5)
+            Arc = Array{Float64}(undef,nb_arcs,5)
             for i in 1:nb_arcs
                 tab = split(data[3+i]," ")
                 for j in 1:2
                     Arc[i,j] = parse(Int64,tab[j])+1
                 end
-                for j in [3 5]
-                    Arc[i,j] = parse(Int64,tab[j])
-                end
-                Arc[i,4] = parse(Float64,tab[j])
+                Arc[i,3] = parse(Float64,tab[4])
+                Arc[i,4] = parse(Float64,tab[5])
+                Arc[i,5] = parse(Float64,tab[6])
             end
             return (nb_nodes,nb_arcs,Arc)
         end
@@ -100,6 +99,6 @@ end
 #println("nb_commodities = ", nb_commodities)
 #println("fct = " ,Fct_commod)
 #print(get_data("../instances/grille2x3_Fct_Commod.txt",2))
-
+#println(get_data("../instances/abilene/abilene_1/Fct_commod.txt",5))
 #println(get_data("../instances/grille2x3_Affinity.txt",2))
 #println(get_data("../instances/grille2x3_Functions.txt",2))

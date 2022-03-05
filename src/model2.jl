@@ -7,12 +7,13 @@ function main(file_name :: String)
     nb_func,Function     = get_data("../instances/"*file_name*"Functions.txt",2)
     nb_func = Int(nb_func)
     nb_comm,Affinity   = get_data("../instances/"*file_name*"Affinity.txt", nb_func)
-    useless,Fct_commod = get_data("../instances/"*file_name*"Fct_Commod.txt" , nb_func)
+    useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
     useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
     nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
 
     #println("Function : ", Function)
     #println("Affinity  : ",Affinity )
+    #println("nb_func : ",nb_func)
     #println("Fct_commod : ",Fct_commod )
     #println("Commodity  : ", Commodity )
     #println("Arc : ",Arc)
@@ -20,30 +21,33 @@ function main(file_name :: String)
     func_per_comm = Fct_commod
     func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
 
-    source = [Commodity[1,c] for c in 1:nb_comm]
-    sink =   [Commodity[2,c] for c in 1:nb_comm]
+    source = [Commodity[c,1] for c in 1:nb_comm]
+    sink =   [Commodity[c,1] for c in 1:nb_comm]
 
     open_cost = [1 for k in 1:nb_nodes]
-    func_cost = Function[1:end,2:end]'
+    func_cost = Function[1:end,1:end]'
+    println(func_cost)
 
-    latency =  [[Inf for i in 1:nb_nodes] for j in 1:nb_nodes] #definie après
-    max_latency = [Commodity[4,c] for c in 1:nb_comm]
+    latency =  [[0 for i in 1:nb_nodes] for j in 1:nb_nodes] #definie après
+    max_latency = [Commodity[c,4] for c in 1:nb_comm]
 
-    bandwidth = [Commodity[3,c] for c in 1:nb_comm]
+    bandwidth = [Commodity[c,3] for c in 1:nb_comm]
     capacity = [Function[1,f] for f in 1:nb_func]
 
     max_func = [0 for k in 1:nb_nodes]
     for i in 1:nb_arcs
-        max_func[Arc[1]+1] = Arc[3]
-        max_func[Arc[2]+1] = Arc[4]
-        latency[Arc[1]+1][Arc[2]+1] = Arc[5]
-        latency[Arc[2]+1][Arc[1]+1] = -Arc[5]
+        max_func[Int(Arc[1])+1] = Arc[3]
+        max_func[Int(Arc[2])+1] = Arc[4]
+        latency[Int(Arc[1])+1][Int(Arc[2])+1] = Arc[5]
+        latency[Int(Arc[2])+1][Int(Arc[1])+1] = -Arc[5]
     end
 
+    #println("Affinity : ",Affinity)
     exclusion = [[[0 for k in 1:nb_func ] for i in 1:nb_func] for j in 1:nb_comm]
     for i in 1:nb_comm
-        if Affinity[i] != []
-            exclusion[i][Affinity[i,1]][Affinity[i,2]] = 1
+        if Affinity[i] != [] && Affinity[i]!=0
+            #println(exclusion)
+            exclusion[i][Int(Affinity[i,1])][Int(Affinity[i,2])] = 1
         end        
     end
 
