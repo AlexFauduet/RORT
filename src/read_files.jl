@@ -31,10 +31,10 @@ function get_data(file_name :: String,nb_functions ::Int64)
             for i in 1:nb_commodities
                 tab = split(data[i]," ")
                 #print(tab)
-                for j in 1:length(tab)-1
+                for j in 1:length(tab)
                     Fct_commod[i,j] = parse(Int64,tab[j])+1
                 end
-                for j in length(tab):nb_functions
+                for j in length(tab)+1:nb_functions
                     Fct_commod[i,j] = -1
                 end
             end
@@ -44,11 +44,11 @@ function get_data(file_name :: String,nb_functions ::Int64)
 
         if occursin("Commodity.txt",file_name)
             nb_commodities = parse(Int64,data[2][16:end])
-            Commodity = Array{Float64}(undef,nb_commodities,4)
+            Commodity = Array{Int64}(undef,nb_commodities,4)
             for i in 1:nb_commodities
                 tab = split(data[2+i]," ")
                 for j in 1:4
-                    Commodity[i,j] = parse(Float64,tab[j])
+                    Commodity[i,j] = parse(Int64,tab[j])
                 end
             end
             close(file)
@@ -59,7 +59,7 @@ function get_data(file_name :: String,nb_functions ::Int64)
         if occursin("Functions.txt",file_name)
             nb_functions = parse(Int64,data[2][14:end])
             tab = split(data[3]," ")
-            size = length(tab)-1
+            size = length(tab)
             Function = Array{Int64}(undef,nb_functions,size)  
             for i in 1:nb_functions
                 tab = split(data[2+i]," ")
@@ -102,3 +102,4 @@ end
 #println(get_data("../instances/abilene/abilene_1/Fct_commod.txt",5))
 #println(get_data("../instances/grille2x3_Affinity.txt",2))
 #println(get_data("../instances/grille2x3_Functions.txt",2))
+#println(get_data("../instances/test1_Fct_commod.txt",3))

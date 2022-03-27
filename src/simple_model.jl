@@ -7,6 +7,7 @@ test:
 
 using JuMP, CPLEX
 
+#model avec test1 (cours)
 
 # Defining parameters
 nb_comm = 2
@@ -23,7 +24,7 @@ open_cost = [1, 1, 1, 1]
 func_cost = [1 1 1; 1 1 1; 1 1 1; 1 1 1]
 
 latency = [-1 1 -1 1; 1 -1 1 -1; -1 1 -1 1; 1 -1 1 -1]
-max_latency = [3, 3]
+max_latency = [5, 3]
 
 bandwidth = [20, 2]
 capacity = [10, 10, 10]

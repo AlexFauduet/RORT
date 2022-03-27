@@ -1,0 +1,13 @@
+en faisant julia model2.jl test_ on peu tester le fichier lecture instance avec l'exmple test_ (sinon faire le chemin en argument directement depuis le terminal)
+ou julia DW_model2.jl test_ pour DW
+
+j'ai changé latency et exclusion (pas matrix mais vector(matrix))
+
+question : 
+latency : es ce que vaut - 1 si non def ? 
+max_latency : tu avais mis [3 3] mais en fait c'est [5 3] nan ?
+exclusion : c'est pas [[0 1 0; 0 0 0; 0 0 0], [0 1 0; 0 0 0; 0 0 0]] ? (au lieu de [[0 1 0; 1 0 0; 0 0 0], [0 1 0; 1 0 0; 0 0 0]])
+
+
+partie DW :
+c'est quoi shortest path et latency_sp ? (tu n'utilise pas latency du tout mais que latency_sp)
