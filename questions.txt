@@ -4,10 +4,10 @@ ou julia DW_model2.jl test_ pour DW
 j'ai changé latency et exclusion (pas matrix mais vector(matrix))
 
 question : 
-latency : es ce que vaut - 1 si non def ? 
-max_latency : tu avais mis [3 3] mais en fait c'est [5 3] nan ?
-exclusion : c'est pas [[0 1 0; 0 0 0; 0 0 0], [0 1 0; 0 0 0; 0 0 0]] ? (au lieu de [[0 1 0; 1 0 0; 0 0 0], [0 1 0; 1 0 0; 0 0 0]])
+latency : es ce que vaut - 1 si non def ? -> oui
+max_latency : tu avais mis [3 3] mais en fait c'est [5 3] nan ? -> oui
+exclusion : c'est pas [[0 1 0; 0 0 0; 0 0 0], [0 1 0; 0 0 0; 0 0 0]] ? (au lieu de [[0 1 0; 1 0 0; 0 0 0], [0 1 0; 1 0 0; 0 0 0]]) -> Comme c'est symétrique c'est la même chose
 
 
 partie DW :
-c'est quoi shortest path et latency_sp ? (tu n'utilise pas latency du tout mais que latency_sp)
+c'est quoi shortest path et latency_sp ? (tu n'utilise pas latency du tout mais que latency_sp) -> shortest_path[i, j] = plus court chemin de i à j, et latency_sp[i, j] c'est la latence associée. Pour le moment je les ai calculés à la main, mais faudrait faire dijkstra (cf rapport)
