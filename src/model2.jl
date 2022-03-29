@@ -7,7 +7,22 @@ function main(file_name :: String)
     nb_func,Function     = get_data("../instances/"*file_name*"Functions.txt",2)
     nb_func = Int(nb_func)
     nb_comm,Affinity   = get_data("../instances/"*file_name*"Affinity.txt", nb_func)
-    useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
+    if file_name == "test1_"
+        Fct_commod = [0]
+        func_per_comm = [[1, 2, 3], [2, 1]]
+        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+    elseif file_name == "grille2x3_"
+        Fct_commod = [0]
+        func_per_comm = [[1], [1, 2], [1,2]]
+        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+    else
+        useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
+        dim1 = size(Fct_commod)[1]
+        dim2 = size(Fct_commod)[2]
+        func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
+        #println(func_per_comm)
+        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+    end
     useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
     nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
 
@@ -18,19 +33,11 @@ function main(file_name :: String)
     println("Commodity  : ", Commodity )
     println("Arc : ",Arc)
 
-    dim1 = size(Fct_commod)[1]
-    dim2 = size(Fct_commod)[2]
-    func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
-    #println(func_per_comm)
-    func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
 
-    if -1 in Fct_commod
+    if -1 in Fct_commod 
         println("probleme sur l'instance Fct_commod")
     end
-    if file_name == "test1_"
-        func_per_comm = [[1, 2, 3], [2, 1]]
-        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
-    end
+    
     
 
     source = [Commodity[c,1]+1 for c in 1:nb_comm]
