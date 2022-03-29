@@ -11,3 +11,13 @@ exclusion : c'est pas [[0 1 0; 0 0 0; 0 0 0], [0 1 0; 0 0 0; 0 0 0]] ? (au lieu 
 
 partie DW :
 c'est quoi shortest path et latency_sp ? (tu n'utilise pas latency du tout mais que latency_sp) -> shortest_path[i, j] = plus court chemin de i à j, et latency_sp[i, j] c'est la latence associée. Pour le moment je les ai calculés à la main, mais faudrait faire dijkstra (cf rapport)
+
+
+Func_per_comm est la liste ordonnée des fonctions à exécuter pour une commodité donnée, et func_per_comm_ est la liste où on a rajouté les fonctions fictives qui correspondent au point de départ et d'arrivée
+
+
+remarques :
+-fct_commod : tjs mêmes tailels sauf instances d'exemple
+-au sein d'une même instance : même nb noeuf=d, nb d'arêtes, nb de commodités
+e si 2x
+l98 pas bonne contraint
