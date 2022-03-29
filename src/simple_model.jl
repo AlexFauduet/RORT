@@ -72,7 +72,7 @@ set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
     exec_func[source[comm], comm, 0] == 1
 )
 
-@constraint(  # Fictivve function on sink
+@constraint(  # Fictive function on sink
     model, [comm = 1:nb_comm],
     exec_func[sink[comm], comm, nb_func + 1] == 1
 )
