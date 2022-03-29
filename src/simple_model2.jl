@@ -22,14 +22,12 @@ function main(file_name :: String)
     dim2 = size(Fct_commod)[2]
     func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
     #println(func_per_comm)
-    func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
 
     if -1 in Fct_commod
         println("probleme sur l'instance Fct_commod")
     end
     if file_name == "test1_"
         func_per_comm = [[1, 2, 3], [2, 1]]
-        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
     end
     
 
@@ -39,7 +37,7 @@ function main(file_name :: String)
     open_cost = [1 for k in 1:nb_nodes]
     func_cost = Function[1:end,2:end]'
 
-    latency =  [[-1 for i in 1:nb_nodes] for j in 1:nb_nodes] #definie après
+    latency =  [-1 for i in 1:nb_nodes, j in 1:nb_nodes] #definie après
     max_latency = [Commodity[c,4] for c in 1:nb_comm]
 
     bandwidth = [Commodity[c,3] for c in 1:nb_comm]
@@ -50,7 +48,7 @@ function main(file_name :: String)
     for i in 1:nb_arcs
         max_func[Int64(Arc[i,1])] = Int64(Arc[i,3])
         max_func[Int64(Arc[i,2])] = Int64(Arc[i,4])
-        latency[Int64(Arc[i,1])][Int64(Arc[i,2])] = Int64(Arc[i,5])
+        latency[Int64(Arc[i,1]), Int64(Arc[i,2])] = Int64(Arc[i,5])
     end
 
     #println("Affinity : ",Affinity)
@@ -63,9 +61,10 @@ function main(file_name :: String)
     end
 
     println(nb_comm,nb_nodes,nb_func)
-    println(func_per_comm,func_per_comm_,source,sink)
+    println(func_per_comm,source,sink)
     println(open_cost,func_cost,latency,max_latency,bandwidth,capacity,max_func)
     println(exclusion)
+
     # Defining model
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
@@ -83,22 +82,21 @@ function main(file_name :: String)
     @constraint(  # Max latency on each commodity
         model, [comm = 1:nb_comm],
         sum(
-            latency[i][j] * select_edge[i, j, comm, stage]
-            for stage in 1:length(func_per_comm[comm]) + 1, i in 1:nb_nodes, j in 1:nb_nodes if latency[i][j] > 0
+            latency[i, j] * select_edge[i, j, comm, stage]
+            for stage in 1:length(func_per_comm[comm]) + 1, i in 1:nb_nodes, j in 1:nb_nodes if latency[i, j] > 0
         ) <= max_latency[comm]
     )
 
     @constraint(  # Flow constraint
         model, [i = 1:nb_nodes, comm = 1:nb_comm, stage = 1:length(func_per_comm[comm]) + 1],
-        sum(select_edge[j, i, comm, stage] for j in 1:nb_nodes if latency[j][i] > 0)
-        - sum(select_edge[i, j, comm, stage] for j in 1:nb_nodes if latency[i][j] > 0)
-        == exec_func[i, comm, func_per_comm_[comm][stage + 1]] - exec_func[i, comm, func_per_comm_[comm][stage]]
+        sum(select_edge[j, i, comm, stage] for j in 1:nb_nodes if latency[j, i] > 0)
+        - sum(select_edge[i, j, comm, stage] for j in 1:nb_nodes if latency[i, j] > 0)
+        == exec_func[i, comm, stage] - exec_func[i, comm, stage - 1]
     )
 
-    println(exec_func, nb_comm, func_per_comm)
     @constraint(  # Execute each function once
-        model, [comm = 1:nb_comm, f = func_per_comm[comm]],
-        sum(exec_func[i, comm, f] for i in 1:nb_nodes) == 1
+        model, [comm = 1:nb_comm, stage = 1:length(func_per_comm[comm])],
+        sum(exec_func[i, comm, stage] for i in 1:nb_nodes) == 1
     )
 
     @constraint(  # Fictive function on source
@@ -108,17 +106,24 @@ function main(file_name :: String)
 
     @constraint(  # Fictive function on sink
         model, [comm = 1:nb_comm],
-        exec_func[sink[comm], comm, nb_func + 1] == 1
+        exec_func[sink[comm], comm,length(func_per_comm[comm])] == 1
     )
 
     @constraint(  # Exclusion constraint
-        model, [i = 1:nb_nodes, comm = 1:nb_comm, f = func_per_comm[comm], g = func_per_comm[comm]; exclusion[comm][f][g] == 1],
-        exec_func[i, comm, f] + exec_func[i, comm, g] <= 1
+        model, [
+            i = 1:nb_nodes, comm = 1:nb_comm, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);
+            exclusion[comm][func_per_comm[comm][stage_k]][func_per_comm[comm][stage_l]] == 1
+        ],
+        exec_func[i, comm, stage_k] + exec_func[i, comm, stage_l] <= 1
     )
 
     @constraint(  # Limit on function capacity
         model, [i = 1:nb_nodes, f = 1:nb_func],
-        sum(bandwidth[comm] * exec_func[i, comm, f] for comm in 1:nb_comm) <= capacity[f] * nb_functions[i, f]
+        sum(sum(
+            bandwidth[comm] * exec_func[i, comm, stage]
+            for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f)
+            for comm in 1:nb_comm
+        ) <= capacity[f] * nb_functions[i, f]
     )
 
     @constraint(  # Install functions on open nodes
@@ -137,10 +142,10 @@ function main(file_name :: String)
             stage_start = -1
             stage_end = -1
             for i in 1:nb_nodes
-                if value(exec_func[i, comm, func_per_comm_[comm][stage]]) == 1
+                if value(exec_func[i, comm, stage - 1]) == 1
                     stage_start = i
                 end
-                if value(exec_func[i, comm, func_per_comm_[comm][stage + 1]]) == 1
+                if value(exec_func[i, comm, stage]) == 1
                     stage_end = i
                 end
             end
@@ -161,7 +166,7 @@ function main(file_name :: String)
             end
 
             if stage != length(func_per_comm[comm]) + 1
-                print("(f" * string(func_per_comm_[comm][stage + 1]) * ")")
+                print("(f" * string(func_per_comm[comm][stage]) * ")")
             end
         end
 

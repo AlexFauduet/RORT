@@ -18,7 +18,7 @@ function compute_shortest_paths(nb_nodes, latency)
     end
     graph = SimpleDiGraph(latency_)
 
-    sp = floyd_warshall_shortest_paths(graph)
+    sp = floyd_warshall_shortest_paths(graph, latency_)
 
     latency_sp = sp.dists
     shortest_path = enumerate_paths(sp)

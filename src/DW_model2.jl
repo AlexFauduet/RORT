@@ -62,8 +62,9 @@ global latency_sp, shortest_path = compute_shortest_paths(nb_nodes, latency)
 function init_problem()
     init_model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(init_model, "CPX_PARAM_EPINT", 1e-8)
+    set_optimizer_attribute(init_model, "CPX_PARAM_TILIM", 90)
+    set_optimizer_attribute(init_model, "CPX_PARAM_MIPEMPHASIS", 1)
 
-    @variable(init_model, nb_functions[1:nb_nodes, 1:nb_func] >= 0, Int)  # Number of functions installed on node
     @variable(init_model, exec_func[1:nb_nodes, 1:nb_comm, 0:nb_func + 1], Bin)  # 1 if function executed on node
     @variable(init_model, stage_latency[comm = 1:nb_comm, 1:length(func_per_comm[comm]) + 1])  # total latency induced by each stage
 
@@ -79,12 +80,12 @@ function init_problem()
 
     @constraint(  # stage latency (DW)
         init_model, [comm = 1:nb_comm, stage = 1:length(func_per_comm[comm]) + 1, i = 1:nb_nodes, j = 1:nb_nodes],
-        stage_latency[comm, stage] >= (exec_func[i, comm, func_per_comm_[comm][stage]] + exec_func[j, comm, func_per_comm_[comm][stage + 1]] - 1) * latency_sp[i, j]
+        stage_latency[comm, stage] >= (exec_func[i, comm, stage - 1] + exec_func[j, comm, stage] - 1) * latency_sp[i, j]
     )
 
     @constraint(  # Execute each function once
-        init_model, [comm = 1:nb_comm, f = func_per_comm[comm]],
-        sum(exec_func[i, comm, f] for i in 1:nb_nodes) == 1
+        init_model, [comm = 1:nb_comm, stage = 1:length(func_per_comm[comm])],
+        sum(exec_func[i, comm, stage] for i in 1:nb_nodes) == 1
     )
 
     @constraint(  # Fictive function on source
@@ -92,32 +93,34 @@ function init_problem()
         exec_func[source[comm], comm, 0] == 1
     )
 
-    @constraint(  # Fictivve function on sink
+    @constraint(  # Fictive function on sink
         init_model, [comm = 1:nb_comm],
-        exec_func[sink[comm], comm, nb_func + 1] == 1
+        exec_func[sink[comm], comm, length(func_per_comm[comm]) + 1] == 1
     )
 
     @constraint(  # Exclusion constraint
-        init_model, [comm = 1:nb_comm, i = 1:nb_nodes, f = func_per_comm[comm], g = func_per_comm[comm]; exclusion[comm][f][g] == 1],
-        exec_func[i, comm, f] + exec_func[i, comm, g] <= 1
+        init_model, [
+            i = 1:nb_nodes, comm = 1:nb_comm, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);
+            exclusion[comm][func_per_comm[comm][stage_k]][func_per_comm[comm][stage_l]] == 1
+        ],
+        exec_func[i, comm, stage_k] + exec_func[i, comm, stage_l] <= 1
     )
 
-    @constraint(  # Limit on function capacity
-        init_model, capacity_constr[comm = 1:nb_comm, i = 1:nb_nodes, f = 1:nb_func],
-        sum(bandwidth[comm] * exec_func[i, comm, f] for comm in 1:nb_comm) <= capacity[f] * nb_functions[i, f]
-    )
-
-    @constraint(  # Install functions on open nodes
+    @constraint(  # Limit on node capacity
         init_model, [i = 1:nb_nodes],
-        sum(nb_functions[i, f] for f in 1:nb_func) <= max_func[i]
+        sum(sum(
+            bandwidth[comm] / capacity[func_per_comm[comm][stage]] * exec_func[i, comm, stage]
+            for stage in 1:length(func_per_comm[comm]))
+            for comm in 1:nb_comm
+        ) <=  max_func[i]
     )
 
     added_constr = true
     while added_constr
         optimize!(init_model)
 
-        added_constr = false
         comm_latency_val = value.(comm_latency)
+        added_constr = false
         for comm in 1:nb_comm
             if comm_latency_val[comm] > max_latency[comm] + eps
                 @constraint(
@@ -151,9 +154,11 @@ function master_problem(nb_paths, exec_func_paths; MILP=true)
 
     @constraint(  # Limit on function capacity (DW)
         model, capacity_constr[i = 1:nb_nodes, f = 1:nb_func],
-        sum(sum(
-            bandwidth[comm] * exec_func_paths[comm][path][i, f] * select_path[comm, path]
-            for path in 1:nb_paths[comm]) for comm in 1:nb_comm
+        sum(sum(sum(
+            bandwidth[comm] * exec_func_paths[comm][path][i, stage] * select_path[comm, path]
+            for path in 1:nb_paths[comm])
+            for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f)
+            for comm in 1:nb_comm
         ) <= capacity[f] * nb_functions[i, f]
     )
 
@@ -200,7 +205,10 @@ function sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_du
 
         path_weight = @objective(  # Minimize total path weight (DW)
             sub_model, Min,
-            sum(bandwidth[comm] * exec_func[i, f] * capacity_dual[i, f] for i in 1:nb_nodes, f in func_per_comm[comm])
+            sum(
+                bandwidth[comm] * exec_func[i, stage] * capacity_dual[i, func_per_comm[comm][stage]]
+                for i in 1:nb_nodes, stage in 1:length(func_per_comm[comm])
+            )
         )
 
         @constraint(  # Max latency (DW)
@@ -210,12 +218,12 @@ function sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_du
 
         @constraint(  # stage latency (DW)
             sub_model, [stage = 1:length(func_per_comm[comm]) + 1, i = 1:nb_nodes, j = 1:nb_nodes],
-            stage_latency[stage] >= (exec_func[i, func_per_comm_[comm][stage]] + exec_func[j, func_per_comm_[comm][stage + 1]] - 1) * latency_sp[i, j]
+            stage_latency[stage] >= (exec_func[i, stage - 1] + exec_func[j, stage] - 1) * latency_sp[i, j]
         )
 
         @constraint(  # Execute each function once
-            sub_model, [f = func_per_comm[comm]],
-            sum(exec_func[i, f] for i in 1:nb_nodes) == 1
+            sub_model, [stage = 1:length(func_per_comm[comm])],
+            sum(exec_func[i, stage] for i in 1:nb_nodes) == 1
         )
 
         @constraint(  # Fictive function on source
@@ -225,12 +233,15 @@ function sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_du
 
         @constraint(  # Fictivve function on sink
             sub_model,
-            exec_func[sink[comm], nb_func + 1] == 1
+            exec_func[sink[comm], length(func_per_comm[comm]) + 1] == 1
         )
 
         @constraint(  # Exclusion constraint
-            sub_model, [i = 1:nb_nodes, f = func_per_comm[comm], g = func_per_comm[comm]; exclusion[comm][f][g] == 1],
-            exec_func[i, f] + exec_func[i, g] <= 1
+            sub_model, [
+                i = 1:nb_nodes, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);
+                exclusion[comm][func_per_comm[comm][stage_k]][func_per_comm[comm][stage_l]] == 1
+            ],
+            exec_func[i, stage_k] + exec_func[i, stage_l] <= 1
         )
 
         optimize!(sub_model)
@@ -261,14 +272,14 @@ while added_path
     global added_path = sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_dual)
 end
 
-# Solving MILP master using generated paths
+# Solving MIP using generated paths
 select_path, open_node, nb_functions, _, _ = master_problem(nb_paths, exec_func_paths, MILP=true)
 
 # Reconstruct variable from original problem
-exec_func = [0 for i in 1:nb_nodes, comm in 1:nb_comm, f in 0:nb_func + 1]
+exec_func = [0 for i in 1:nb_nodes, comm in 1:nb_comm, stage in 0:nb_func + 1]
 for comm in 1:nb_comm
     for path in 1:nb_paths[comm]
-        if Int(select_path[comm, path]) == 1
+        if round(Int, select_path[comm, path]) == 1
             exec_func[:, comm, :] = exec_func_paths[comm][path]
             break
         end
@@ -284,10 +295,10 @@ for comm in 1:nb_comm
         stage_start = -1
         stage_end = -1
         for i in 1:nb_nodes
-            if Int(exec_func[i, comm, func_per_comm_[comm][stage] + 1]) == 1
+            if round(Int, exec_func[i, comm, stage]) == 1
                 stage_start = i
             end
-            if Int(exec_func[i, comm, func_per_comm_[comm][stage + 1] + 1]) == 1
+            if Int(exec_func[i, comm, stage + 1]) == 1
                 stage_end = i
             end
         end
@@ -301,7 +312,7 @@ for comm in 1:nb_comm
         end
 
         if stage != length(func_per_comm[comm]) + 1
-            print("(f" * string(func_per_comm_[comm][stage + 1]) * ")")
+            print("(f" * string(func_per_comm[comm][stage]) * ")")
         end
     end
 
@@ -312,7 +323,7 @@ for i in 1:nb_nodes
         print("node " * string(i) * ":")
 
         for f in 1:nb_func
-            print(" f" * string(f) * " * " * string(Int(nb_functions[i, f])) * ",")
+            print(" f" * string(f) * " * " * string(round(Int, nb_functions[i, f])) * ",")
         end
 
         print("\n")

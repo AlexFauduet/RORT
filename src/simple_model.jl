@@ -15,7 +15,6 @@ nb_nodes = 4
 nb_func = 3
 
 func_per_comm = [[1, 2, 3], [2, 1]]
-func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
 
 source = [1, 2]
 sink = [3, 4]
@@ -59,12 +58,12 @@ set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
     model, [i = 1:nb_nodes, comm = 1:nb_comm, stage = 1:length(func_per_comm[comm]) + 1],
     sum(select_edge[j, i, comm, stage] for j in 1:nb_nodes if latency[j, i] > 0)
     - sum(select_edge[i, j, comm, stage] for j in 1:nb_nodes if latency[i, j] > 0)
-    == exec_func[i, comm, func_per_comm_[comm][stage + 1]] - exec_func[i, comm, func_per_comm_[comm][stage]]
+    == exec_func[i, comm, stage] - exec_func[i, comm, stage - 1]
 )
 
 @constraint(  # Execute each function once
-    model, [comm = 1:nb_comm, f = func_per_comm[comm]],
-    sum(exec_func[i, comm, f] for i in 1:nb_nodes) == 1
+    model, [comm = 1:nb_comm, stage = 1:length(func_per_comm[comm])],
+    sum(exec_func[i, comm, stage] for i in 1:nb_nodes) == 1
 )
 
 @constraint(  # Fictive function on source
@@ -74,17 +73,24 @@ set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
 
 @constraint(  # Fictive function on sink
     model, [comm = 1:nb_comm],
-    exec_func[sink[comm], comm, nb_func + 1] == 1
+    exec_func[sink[comm], comm,length(func_per_comm[comm])] == 1
 )
 
 @constraint(  # Exclusion constraint
-    model, [i = 1:nb_nodes, comm = 1:nb_comm, f = func_per_comm[comm], g = func_per_comm[comm]; exclusion[comm][f, g] == 1],
-    exec_func[i, comm, f] + exec_func[i, comm, g] <= 1
+    model, [
+        i = 1:nb_nodes, comm = 1:nb_comm, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);
+        exclusion[comm][func_per_comm[comm][stage_k], func_per_comm[comm][stage_l]] == 1
+    ],
+    exec_func[i, comm, stage_k] + exec_func[i, comm, stage_l] <= 1
 )
 
 @constraint(  # Limit on function capacity
     model, [i = 1:nb_nodes, f = 1:nb_func],
-    sum(bandwidth[comm] * exec_func[i, comm, f] for comm in 1:nb_comm) <= capacity[f] * nb_functions[i, f]
+    sum(sum(
+        bandwidth[comm] * exec_func[i, comm, stage]
+        for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f)
+        for comm in 1:nb_comm
+    ) <= capacity[f] * nb_functions[i, f]
 )
 
 @constraint(  # Install functions on open nodes
@@ -103,10 +109,10 @@ for comm in 1:nb_comm
         stage_start = -1
         stage_end = -1
         for i in 1:nb_nodes
-            if value(exec_func[i, comm, func_per_comm_[comm][stage]]) == 1
+            if value(exec_func[i, comm, stage - 1]) == 1
                 stage_start = i
             end
-            if value(exec_func[i, comm, func_per_comm_[comm][stage + 1]]) == 1
+            if value(exec_func[i, comm, stage]) == 1
                 stage_end = i
             end
         end
@@ -127,7 +133,7 @@ for comm in 1:nb_comm
         end
 
         if stage != length(func_per_comm[comm]) + 1
-            print("(f" * string(func_per_comm_[comm][stage + 1]) * ")")
+            print("(f" * string(func_per_comm[comm][stage]) * ")")
         end
     end
 
