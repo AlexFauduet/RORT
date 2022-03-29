@@ -105,11 +105,12 @@ end
 
 
 #nb_nodes,nb_arcs,Arc=get_data("../instances/grille2x3_Graph.txt")
-#nb_commodities,Fct_commod = get_data("../instances/grille2x3_Fct_Commod.txt",2)
+#nb_commodities,Fct_commod = get_data("../instances/grille2x3_Fct_commod.txt",2)
+
 #println("nb_commodities = ", nb_commodities)
 #println("fct = " ,Fct_commod)
 #print(get_data("../instances/grille2x3_Fct_Commod.txt",2))
-println(get_data("../instances/abilene/abilene_1/Fct_commod.txt",26))
+#println(get_data("../instances/abilene/abilene_1/Fct_commod.txt",26))
 #println(get_data("../instances/grille2x3_Affinity.txt",2))
 #println(get_data("../instances/grille2x3_Functions.txt",2))
 #println(get_data("../instances/test1_Fct_commod.txt",3))
