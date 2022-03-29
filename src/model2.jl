@@ -48,9 +48,9 @@ function main(file_name :: String)
 
     max_func = [0 for k in 1:nb_nodes]
     for i in 1:nb_arcs
-        max_func[Int(Arc[i,1])] = Arc[i,3]
-        max_func[Int(Arc[i,2])] = Arc[i,4]
-        latency[Int(Arc[i,1])][Int(Arc[i,2])] = Arc[i,5]
+        max_func[Int64(Arc[i,1])] = Int64(Arc[i,3])
+        max_func[Int64(Arc[i,2])] = Int64(Arc[i,4])
+        latency[Int64(Arc[i,1])][Int64(Arc[i,2])] = Int64(Arc[i,5])
     end
 
     #println("Affinity : ",Affinity)
@@ -95,6 +95,7 @@ function main(file_name :: String)
         == exec_func[i, comm, func_per_comm_[comm][stage + 1]] - exec_func[i, comm, func_per_comm_[comm][stage]]
     )
 
+    println(exec_func, nb_comm, func_per_comm)
     @constraint(  # Execute each function once
         model, [comm = 1:nb_comm, f = func_per_comm[comm]],
         sum(exec_func[i, comm, f] for i in 1:nb_nodes) == 1
