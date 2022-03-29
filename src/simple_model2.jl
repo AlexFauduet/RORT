@@ -113,7 +113,7 @@ function main(file_name :: String)
         exec_func[source[comm], comm, 0] == 1
     )
 
-    @constraint(  # Fictivve function on sink
+    @constraint(  # Fictive function on sink
         model, [comm = 1:nb_comm],
         exec_func[sink[comm], comm, nb_func + 1] == 1
     )
