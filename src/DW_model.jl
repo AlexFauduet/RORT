@@ -6,6 +6,7 @@ DW_model:
 =#
 
 using JuMP, CPLEX
+include("utils.jl")
 
 
 # Precision for adding DW variables
@@ -28,13 +29,7 @@ global func_cost = [1 1 1; 1 1 1; 1 1 1; 1 1 1]
 global latency = [-1 1 -1 1; 1 -1 1 -1; -1 1 -1 1; 1 -1 1 -1]
 global max_latency = [3, 3]
 
-global shortest_path = [
-    [[], [2], [2 3], [4]],
-    [[1], [], [3], [3 4]],
-    [[2 1], [2], [], [4]],
-    [[1], [1 2], [3], []]
-]
-global latency_sp = [0 1 2 1; 1 0 1 2; 2 1 0 1; 1 2 1 0]  # TODO: implémenter Dijkstra
+global latency_sp, shortest_path = compute_shortest_paths(nb_nodes, latency)
 
 global bandwidth = [20, 2]
 global capacity = [10, 10, 10]

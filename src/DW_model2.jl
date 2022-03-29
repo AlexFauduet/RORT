@@ -1,5 +1,6 @@
 using JuMP, CPLEX,ArgParse
 include("read_files.jl")
+include("utils.jl")
 
 
 file_name = ARGS[1]
@@ -34,16 +35,8 @@ global sink = [Commodity[c,2]+1 for c in 1:nb_comm]
 global open_cost = [1 for k in 1:nb_nodes]
 global func_cost = Function[1:end,2:end]'
 
-global latency = [[-1 for i in 1:nb_nodes] for j in 1:nb_nodes] #definie après
+global latency = [-1 for i in 1:nb_nodes, j in 1:nb_nodes] #definie après
 global max_latency = [Commodity[c,4] for c in 1:nb_comm]
-
-global shortest_path = [
-    [[], [2], [2 3], [4]],
-    [[1], [], [3], [3 4]],
-    [[2 1], [2], [], [4]],
-    [[1], [1 2], [3], []]
-]
-global latency_sp = [0 1 2 1; 1 0 1 2; 2 1 0 1; 1 2 1 0]  # TODO: implémenter Dijkstra
 
 global bandwidth = [Commodity[c,3] for c in 1:nb_comm]
 global capacity = [Function[f,1] for f in 1:nb_func]
@@ -52,7 +45,7 @@ global max_func = [0 for k in 1:nb_nodes]
 for i in 1:nb_arcs
     global max_func[Int(Arc[i,1])] = Arc[i,3]
     global max_func[Int(Arc[i,2])] = Arc[i,4]
-    global latency[Int(Arc[i,1])][Int(Arc[i,2])] = Arc[i,5]
+    global latency[Int(Arc[i,1]), Int(Arc[i,2])] = Arc[i,5]
 end
 
 global exclusion = [[[0 for k in 1:nb_func ] for i in 1:nb_func] for j in 1:nb_comm]
@@ -62,6 +55,8 @@ for i in 1:nb_comm
         global exclusion[i][Int(Affinity[i,1])][Int(Affinity[i,2])] = 1
     end        
 end
+
+global latency_sp, shortest_path = compute_shortest_paths(nb_nodes, latency)
 
 
 function init_problem()
@@ -122,8 +117,9 @@ function init_problem()
         optimize!(init_model)
 
         added_constr = false
+        comm_latency_val = value.(comm_latency)
         for comm in 1:nb_comm
-            if value(comm_latency[comm]) > max_latency[comm] + eps
+            if comm_latency_val[comm] > max_latency[comm] + eps
                 @constraint(
                     init_model,
                     comm_latency[comm] <= max_latency[comm]
@@ -265,7 +261,7 @@ while added_path
     global added_path = sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_dual)
 end
 
-# Solving MIP using generated paths
+# Solving MILP master using generated paths
 select_path, open_node, nb_functions, _, _ = master_problem(nb_paths, exec_func_paths, MILP=true)
 
 # Reconstruct variable from original problem
