@@ -61,6 +61,9 @@ global latency_sp, shortest_path = compute_shortest_paths(nb_nodes, latency)
 
 function init_problem()
     init_model = Model(CPLEX.Optimizer)
+
+    set_optimizer_attribute(init_model, "CPX_PARAM_MIPDISPLAY", 1)
+    set_optimizer_attribute(init_model, "CPX_PARAM_PARAMDISPLAY", 0)
     set_optimizer_attribute(init_model, "CPX_PARAM_EPINT", 1e-8)
     set_optimizer_attribute(init_model, "CPX_PARAM_TILIM", 90)
     set_optimizer_attribute(init_model, "CPX_PARAM_MIPEMPHASIS", 1)
@@ -115,25 +118,28 @@ function init_problem()
         ) <=  max_func[i]
     )
 
-    added_constr = true
-    while added_constr
+    added_constr = -1
+    while added_constr != 0
         optimize!(init_model)
 
         comm_latency_val = value.(comm_latency)
-        added_constr = false
+        added_constr = 0
         for comm in 1:nb_comm
             if comm_latency_val[comm] > max_latency[comm] + eps
                 @constraint(
                     init_model,
                     comm_latency[comm] <= max_latency[comm]
                 )
-                added_constr = true
+                added_constr += 1
             end
+        end
+        if (added_constr > 0)
+            println("Re-adding latency constraint for " * string(added_constr) * " commodities")
         end
     end
 
     nb_paths = [1 for comm in 1:nb_comm]
-    exec_func_paths = [[value.(exec_func[:, comm, :])] for comm in 1:nb_comm]
+    exec_func_paths = [[round.(Int, value.(exec_func[:, comm, :]))] for comm in 1:nb_comm]
 
     return nb_paths, exec_func_paths
 end
@@ -141,15 +147,31 @@ end
 
 function master_problem(nb_paths, exec_func_paths; MILP=true)
     model = Model(CPLEX.Optimizer)
+
+    if MILP
+        set_optimizer_attribute(model, "CPX_PARAM_PARAMDISPLAY", 0)
+    else
+        set_optimizer_attribute(model, "CPX_PARAM_SCRIND", 0)
+    end
     set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
 
     @variable(model, open_node[1:nb_nodes], Bin)  # 1 if node is open
     @variable(model, nb_functions[1:nb_nodes, 1:nb_func] >= 0, Int)  # Number of functions installed on node
     @variable(model, select_path[comm = 1:nb_comm, 1:nb_paths[comm]], Bin)  # select given path for given commodity (DW)
 
+    @expression(
+        model, node_open_cost,
+        sum(open_cost[i] * open_node[i] for i in 1:nb_nodes)
+    )
+
+    @expression(
+        model, func_install_cost,
+        sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func)
+    )
+
     @objective(  # Minimize opening and intallation cost
         model, Min,
-        sum(open_cost[i] * open_node[i] for i in 1:nb_nodes) + sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func)
+        node_open_cost + func_install_cost
     )
 
     @constraint(  # Limit on function capacity (DW)
@@ -186,19 +208,20 @@ function master_problem(nb_paths, exec_func_paths; MILP=true)
         path_selection_dual = dual.(path_selection_constr)
     end
 
-    return value.(select_path), value.(open_node), value.(nb_functions), capacity_dual, path_selection_dual
+    return value.(select_path), value.(open_node), value.(nb_functions), value(node_open_cost), value(func_install_cost), capacity_dual, path_selection_dual
 end
 
 
 function sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_dual)
-    added_path = false
+    added_path = 0
 
     for comm in 1:nb_comm
 
         # Defining subproblem
         sub_model = Model(CPLEX.Optimizer)
+
+        set_optimizer_attribute(sub_model, "CPX_PARAM_SCRIND", 0)
         set_optimizer_attribute(sub_model, "CPX_PARAM_EPINT", 1e-8)
-        set_optimizer_attribute(sub_model, "CPX_PARAM_MIPDISPLAY", 0)
 
         @variable(sub_model, exec_func[1:nb_nodes, 0:nb_func + 1], Bin)  # 1 if function executed on node
         @variable(sub_model, stage_latency[1:length(func_per_comm[comm]) + 1])  # total latency induced by each stage
@@ -249,9 +272,9 @@ function sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_du
         # Add new path variable in master if necessary
         if value(path_weight) + eps <= path_selection_dual[comm]
             nb_paths[comm] += 1
-            push!(exec_func_paths[comm], value.(exec_func))
+            push!(exec_func_paths[comm], round.(Int, value.(exec_func)))
 
-            added_path = true
+            added_path += 1
         end
     end
 
@@ -260,20 +283,32 @@ end
 
 
 # Initialization for column generation
+println("------- Initial problem -------")
 nb_paths, exec_func_paths = init_problem()
+print("\n\n")
 
 # Column generation
-added_path = true
-while added_path
+println("------- Column Generation -------")
+added_path = -1
+while added_path != 0
     # Solving relaxed master
-    _, _, _, capacity_dual, path_selection_dual = master_problem(nb_paths, exec_func_paths, MILP=false)
+    _, _, _, node_open_cost, func_install_cost, capacity_dual, path_selection_dual = master_problem(nb_paths, exec_func_paths, MILP=false)
 
     # Solving sub-problem
     global added_path = sub_problem(nb_paths, exec_func_paths, capacity_dual, path_selection_dual)
+
+    if added_path > 0
+        println("Adding new paths for " * string(added_path) * " commodities")
+    else
+        println("Column generation lower bound: " * string(node_open_cost + func_install_cost))
+    end
 end
+print("\n\n")
 
 # Solving MIP using generated paths
-select_path, open_node, nb_functions, _, _ = master_problem(nb_paths, exec_func_paths, MILP=true)
+println("------- Final MIP -------")
+select_path, open_node, nb_functions, node_open_cost, func_install_cost, _, _ = master_problem(nb_paths, exec_func_paths, MILP=true)
+print("\n\n")
 
 # Reconstruct variable from original problem
 exec_func = [0 for i in 1:nb_nodes, comm in 1:nb_comm, stage in 0:nb_func + 1]
@@ -287,6 +322,7 @@ for comm in 1:nb_comm
 end
 
 # Print results
+println("Objective: opening nodes " * string(node_open_cost) * ", installing functions " * string(func_install_cost) * ", total " * string(node_open_cost + func_install_cost))
 for comm in 1:nb_comm
     print("commodity " * string(comm) * ": ")
 
@@ -298,7 +334,7 @@ for comm in 1:nb_comm
             if round(Int, exec_func[i, comm, stage]) == 1
                 stage_start = i
             end
-            if Int(exec_func[i, comm, stage + 1]) == 1
+            if round(Int, exec_func[i, comm, stage + 1]) == 1
                 stage_end = i
             end
         end

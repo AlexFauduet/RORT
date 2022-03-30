@@ -81,9 +81,19 @@ function main(file_name :: String)
     @variable(model, select_edge[1:nb_nodes, 1:nb_nodes, 1:nb_comm, 1:nb_func + 1], Bin)  # flow on edge for given commodity and stage
     @variable(model, exec_func[1:nb_nodes, 1:nb_comm, 0:nb_func + 1], Bin)  # 1 if function executed on node for given commodity
 
+    @expression(
+        model, node_open_cost,
+        sum(open_cost[i] * open_node[i] for i in 1:nb_nodes)
+    )
+
+    @expression(
+        model, func_install_cost,
+        sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func)
+    )
+
     @objective(  # Minimize opening and intallation cost
         model, Min,
-        sum(open_cost[i] * open_node[i] for i in 1:nb_nodes) + sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func)
+        node_open_cost + func_install_cost
     )
 
     @constraint(  # Max latency on each commodity
@@ -113,7 +123,7 @@ function main(file_name :: String)
 
     @constraint(  # Fictive function on sink
         model, [comm = 1:nb_comm],
-        exec_func[sink[comm], comm,length(func_per_comm[comm])] == 1
+        exec_func[sink[comm], comm, length(func_per_comm[comm])] == 1
     )
 
     @constraint(  # Exclusion constraint
@@ -141,6 +151,7 @@ function main(file_name :: String)
     optimize!(model)
 
     # Print results
+    println("Objective: opening nodes " * string(value(node_open_cost)) * ", installing functions " * string(value(func_install_cost)) * ", total " * string(value(node_open_cost + func_install_cost)))
     for comm in 1:nb_comm
         print("commodity " * string(comm) * ": ")
 
@@ -149,10 +160,10 @@ function main(file_name :: String)
             stage_start = -1
             stage_end = -1
             for i in 1:nb_nodes
-                if value(exec_func[i, comm, stage - 1]) == 1
+                if round(Int, value(exec_func[i, comm, stage - 1])) == 1
                     stage_start = i
                 end
-                if value(exec_func[i, comm, stage]) == 1
+                if round(Int, value(exec_func[i, comm, stage])) == 1
                     stage_end = i
                 end
             end
@@ -163,7 +174,7 @@ function main(file_name :: String)
             current_pos = stage_start
             while current_pos != stage_end
                 for next_pos in 1:nb_nodes
-                    if value(select_edge[current_pos, next_pos, comm, stage]) == 1
+                    if round(Int, value(select_edge[current_pos, next_pos, comm, stage])) == 1
                         print(" -> ")
                         print(string(next_pos))
                         current_pos = next_pos
@@ -180,11 +191,11 @@ function main(file_name :: String)
         print("\n")
     end
     for i in 1:nb_nodes
-        if value(open_node[i]) == 1
+        if round(Int, value(open_node[i])) == 1
             print("node " * string(i) * ":")
 
             for f in 1:nb_func
-                print(" f" * string(f) * " * " * string(Int(value(nb_functions[i, f]))) * ",")
+                print(" f" * string(f) * " * " * string(round(Int, value(nb_functions[i, f]))) * ",")
             end
 
             print("\n")
