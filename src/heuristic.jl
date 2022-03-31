@@ -31,12 +31,6 @@ global nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt
 # Precision for adding DW variables
 global const eps = 0.0001
 
-dim1 = size(Fct_commod)[1]
-dim2 = size(Fct_commod)[2]
-global func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
-#println(func_per_comm)
-global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
-
 global source = [Commodity[c,1]+1 for c in 1:nb_comm]
 global sink = [Commodity[c,2]+1 for c in 1:nb_comm]
 
@@ -101,9 +95,35 @@ function mp_heuristic()
     @constraint(mp_h, [i = 1:nb_nodes],sum(nb_functions[i, f] for f in 1:nb_func) <= max_func[i] * open_node[i])
 
     optimize!(mp_h)
+    println("value.(nb_functions)",value.(nb_functions))
+    println("nb_functions",nb_functions)
+
+    return node_open_cost, func_install_cost, exec_func, select_edge, func_per_comm, open_node, nb_functions, value.(exec_func), value.(bandwidth), value.(nb_functions)
 end
 
-mp_heuristic()
+node_open_cost, func_install_cost, exec_func, select_edge, func_per_comm, open_node, nb_functions, val_exec_func, val_bandwidth, val_nb_functions= mp_heuristic()
+
+#@constraint(mp_h, [i = 1:nb_nodes, f = 1:nb_func],
+#sum(sum(bandwidth[comm] * exec_func[i, comm, stage] for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f) for comm in 1:nb_comm    ) <= capacity[f] * nb_functions[i, f])
+
+depassement = Array{Int64}(undef,nb_nodes,nb_func)
+for i in 1:nb_nodes
+    for f in 1:nb_func
+        somme = 0
+        for comm in 1:nb_comm 
+            for stage in 1:length(func_per_comm[comm])
+                if func_per_comm[comm][stage] == f
+                    #println(value.exec_func[i, comm, stage],value.bandwidth[comm])
+                    somme = somme + val_bandwidth[comm] * val_exec_func[i, comm, stage]
+                    #println(somme)
+                end
+            end
+        end
+        println("capa",capacity[f] ,val_nb_functions[i, f])
+        depassement[i,f]=max(0,Int64(round( somme - capacity[f] * val_nb_functions[i, f] ) ) )
+    end
+end
+println(depassement)
 
 # Print results
 println("Objective: opening nodes " * string(value(node_open_cost)) * ", installing functions " * string(value(func_install_cost)) * ", total " * string(value(node_open_cost + func_install_cost)))
