@@ -75,7 +75,8 @@ function mp_heuristic()
     @expression(mp_h, func_install_cost,sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func))
 
     # Minimize opening and intallation cost
-    @objective(  mp_h, Min,node_open_cost + func_install_cost)
+    @objective(  mp_h, Min,node_open_cost)
+    #@objective(  mp_h, Min,func_install_cost)
 
     # Max latency on each commodity
     @constraint(mp_h, [comm = 1:nb_comm],sum(latency[i, j] * select_edge[i, j, comm, stage] for stage in 1:length(func_per_comm[comm]) + 1, i in 1:nb_nodes, j in 1:nb_nodes if latency[i, j] > 0) <= max_latency[comm])
@@ -90,7 +91,7 @@ function mp_heuristic()
     # Exclusion constraint
     @constraint( mp_h, [i = 1:nb_nodes, comm = 1:nb_comm, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);exclusion[comm][func_per_comm[comm][stage_k]][func_per_comm[comm][stage_l]] == 1],exec_func[i, comm, stage_k] + exec_func[i, comm, stage_l] <= 1)
     # Limit on function capacity
-    #@constraint(mp_h, [i = 1:nb_nodes, f = 1:nb_func],sum(sum(bandwidth[comm] * exec_func[i, comm, stage] for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f) for comm in 1:nb_comm    ) <= capacity[f] * nb_functions[i, f])
+    @constraint(mp_h, [i = 1:nb_nodes, f = 1:nb_func],sum(sum(bandwidth[comm] * exec_func[i, comm, stage] for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f) for comm in 1:nb_comm    ) <= capacity[f] * nb_functions[i, f])
     # Install functions on open nodes
     @constraint(mp_h, [i = 1:nb_nodes],sum(nb_functions[i, f] for f in 1:nb_func) <= max_func[i] * open_node[i])
 
@@ -103,27 +104,6 @@ end
 
 node_open_cost, func_install_cost, exec_func, select_edge, func_per_comm, open_node, nb_functions, val_exec_func, val_bandwidth, val_nb_functions, val_open_node= mp_heuristic()
 
-#@constraint(mp_h, [i = 1:nb_nodes, f = 1:nb_func],
-#sum(sum(bandwidth[comm] * exec_func[i, comm, stage] for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f) for comm in 1:nb_comm    ) <= capacity[f] * nb_functions[i, f])
-
-depassement = Array{Int64}(undef,nb_nodes,nb_func)
-for i in 1:nb_nodes
-    for f in 1:nb_func
-        somme = 0
-        for comm in 1:nb_comm 
-            for stage in 1:length(func_per_comm[comm])
-                if func_per_comm[comm][stage] == f
-                    #println(value.exec_func[i, comm, stage],value.bandwidth[comm])
-                    somme = somme + val_bandwidth[comm] * val_exec_func[i, comm, stage]
-                    #println(somme)
-                end
-            end
-        end
-        println("capa",capacity[f] ,"  ",val_nb_functions[i, f])
-        depassement[i,f]=max(0,Int64(round( somme - capacity[f] * val_nb_functions[i, f] ) ) )
-    end
-end
-println(depassement)
 
 # Print results
 println("Objective: opening nodes " * string(value(node_open_cost)) * ", installing functions " * string(value(func_install_cost)) * ", total " * string(value(node_open_cost + func_install_cost)))
@@ -166,7 +146,7 @@ for comm in 1:nb_comm
     print("\n")
 end
 for i in 1:nb_nodes
-    println(val_open_node[i])
+
     if round(Int, value(val_open_node[i])) == 1
         print("node " * string(i) * ":")
 
