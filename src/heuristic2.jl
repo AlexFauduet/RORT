@@ -3,7 +3,8 @@ include("read_files.jl")
 include("utils.jl")
 
 
-file_names = ["dfn-bwin/dfn-bwin_1/","dfn-bwin/dfn-bwin_2/","dfn-bwin/dfn-bwin_3/","dfn-bwin/dfn-bwin_4/","dfn-bwin/dfn-bwin_5/","dfn-bwin/dfn-bwin_6/","dfn-bwin/dfn-bwin_7/","dfn-bwin/dfn-bwin_8/","dfn-bwin/dfn-bwin_9/","dfn-bwin/dfn-bwin_10/","di-yuan/di-yan_1/","di-yuan/di-yan_2/","di-yuan/di-yan_3/","di-yuan/di-yan_4/","di-yuan/di-yan_5/","di-yuan/di-yan_6/","di-yuan/di-yan_7/","di-yuan/di-yan_8/","di-yuan/di-yan_9/","di-yuan/di-yan_10/"]
+#file_names = ["dfn-bwin/dfn-bwin_1/","dfn-bwin/dfn-bwin_2/","dfn-bwin/dfn-bwin_3/","dfn-bwin/dfn-bwin_4/","dfn-bwin/dfn-bwin_5/","dfn-bwin/dfn-bwin_6/","dfn-bwin/dfn-bwin_7/","dfn-bwin/dfn-bwin_8/","dfn-bwin/dfn-bwin_9/","dfn-bwin/dfn-bwin_10/","di-yuan/di-yan_1/","di-yuan/di-yan_2/","di-yuan/di-yan_3/","di-yuan/di-yan_4/","di-yuan/di-yan_5/","di-yuan/di-yan_6/","di-yuan/di-yan_7/","di-yuan/di-yan_8/","di-yuan/di-yan_9/","di-yuan/di-yan_10/"]
+file_names = ["di-yuan/di-yuan_1/","di-yuan/di-yuan_2/","di-yuan/di-yuan_3/","di-yuan/di-yuan_4/","di-yuan/di-yuan_5/","di-yuan/di-yuan_6/","di-yuan/di-yuan_7/","di-yuan/di-yuan_8/","di-yuan/di-yuan_9/","di-yuan/di-yuan_10/"]
 
 
 
