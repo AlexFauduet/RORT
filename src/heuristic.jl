@@ -1,189 +1,158 @@
 using JuMP, CPLEX,ArgParse
 include("read_files.jl")
+include("utils.jl")
 
 
+file_name = ARGS[1]
 
-function main(file_name :: String)
-    nb_func,Function     = get_data("../instances/"*file_name*"Functions.txt",2)
-    nb_func = Int(nb_func)
-    nb_comm,Affinity   = get_data("../instances/"*file_name*"Affinity.txt", nb_func)
+#Leture des instances
+global nb_func,Function     = get_data("../instances/"*file_name*"Functions.txt",2)
+global nb_func = Int(nb_func)
+global nb_comm,Affinity   = get_data("../instances/"*file_name*"Affinity.txt", nb_func)
+if file_name == "test1_"
+    Fct_commod = [0]
+    global func_per_comm = [[1, 2, 3], [2, 1]]
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+elseif file_name == "grille2x3_"
+    Fct_commod = [0]
+    global func_per_comm = [[1], [1, 2], [1,2]]
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+else
     useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
-    useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
-    nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
-
-    println("Function : ", Function)
-    println("Affinity  : ",Affinity )
-    println("nb_func : ",nb_func)
-    println("Fct_commod : ",Fct_commod )
-    println("Commodity  : ", Commodity )
-    println("Arc : ",Arc)
-
     dim1 = size(Fct_commod)[1]
     dim2 = size(Fct_commod)[2]
-    func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
+    global func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
     #println(func_per_comm)
-    func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+end
+global useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
+global nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
 
-    if -1 in Fct_commod
-        println("probleme sur l'instance Fct_commod")
-    end
-    if file_name == "test1_"
-        func_per_comm = [[1, 2, 3], [2, 1]]
-        func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
-    end
-    
+# Precision for adding DW variables
+global const eps = 0.0001
 
-    source = [Commodity[c,1]+1 for c in 1:nb_comm]
-    sink =   [Commodity[c,2]+1 for c in 1:nb_comm]
+dim1 = size(Fct_commod)[1]
+dim2 = size(Fct_commod)[2]
+global func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
+#println(func_per_comm)
+global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
 
-    open_cost = [1 for k in 1:nb_nodes]
-    func_cost = Function[1:end,2:end]'
+global source = [Commodity[c,1]+1 for c in 1:nb_comm]
+global sink = [Commodity[c,2]+1 for c in 1:nb_comm]
 
-    latency =  [[-1 for i in 1:nb_nodes] for j in 1:nb_nodes] #definie après
-    max_latency = [Commodity[c,4] for c in 1:nb_comm]
+global open_cost = [1 for k in 1:nb_nodes]
+global func_cost = Function[1:end,2:end]'
 
-    bandwidth = [Commodity[c,3] for c in 1:nb_comm]
-    #println("Fucntion : ",Function)
-    capacity = [Function[f,1] for f in 1:nb_func]
+global latency = [-1 for i in 1:nb_nodes, j in 1:nb_nodes] #definie après
+global max_latency = [Commodity[c,4] for c in 1:nb_comm]
 
-    max_func = [0 for k in 1:nb_nodes]
-    for i in 1:nb_arcs
-        max_func[Int64(Arc[i,1])] = Int64(Arc[i,3])
-        max_func[Int64(Arc[i,2])] = Int64(Arc[i,4])
-        latency[Int64(Arc[i,1])][Int64(Arc[i,2])] = Int64(Arc[i,5])
-    end
+global bandwidth = [Commodity[c,3] for c in 1:nb_comm]
+global capacity = [Function[f,1] for f in 1:nb_func]
 
-    #println("Affinity : ",Affinity)
-    exclusion = [[[0 for k in 1:nb_func ] for i in 1:nb_func] for j in 1:nb_comm]
-    for i in 1:nb_comm
-        if Affinity[i] != [] && Affinity[i]!=0
-            #println(exclusion)
-            exclusion[i][Int(Affinity[i,1])][Int(Affinity[i,2])] = 1
-        end        
-    end
+global max_func = [0 for k in 1:nb_nodes]
+for i in 1:nb_arcs
+    global max_func[Int(Arc[i,1])] = Arc[i,3]
+    global max_func[Int(Arc[i,2])] = Arc[i,4]
+    global latency[Int(Arc[i,1]), Int(Arc[i,2])] = Arc[i,5]
+end
 
-    println(nb_comm,nb_nodes,nb_func)
-    println(func_per_comm,func_per_comm_,source,sink)
-    println(open_cost,func_cost,latency,max_latency,bandwidth,capacity,max_func)
-    println(exclusion)
+global exclusion = [[[0 for k in 1:nb_func ] for i in 1:nb_func] for j in 1:nb_comm]
+for i in 1:nb_comm
+    if Affinity[i] != [] && Affinity[i]!=0
+        #println(exclusion)
+        global exclusion[i][Int(Affinity[i,1])][Int(Affinity[i,2])] = 1
+    end        
+end
+
+global latency_sp, shortest_path = compute_shortest_paths(nb_nodes, latency)
+
+
+function mp_heuristic()
     # Defining model
-    model = Model(CPLEX.Optimizer)
-    set_optimizer_attribute(model, "CPX_PARAM_EPINT", 1e-8)
+    mp_h = Model(CPLEX.Optimizer)
+    set_optimizer_attribute(mp_h, "CPX_PARAM_EPINT", 1e-5)
 
-    @variable(model, open_node[1:nb_nodes], Bin)  # 1 if node is open
-    @variable(model, nb_functions[1:nb_nodes, 1:nb_func] >= 0, Int)  # Number of functions installed on node
-    @variable(model, select_edge[1:nb_nodes, 1:nb_nodes, 1:nb_comm, 1:nb_func + 1], Bin)  # flow on edge for given commodity and stage
-    @variable(model, exec_func[1:nb_nodes, 1:nb_comm, 0:nb_func + 1], Bin)  # 1 if function executed on node for given commodity
+    @variable(mp_h, open_node[1:nb_nodes], Bin)  # 1 if node is open
+    @variable(mp_h, nb_functions[1:nb_nodes, 1:nb_func] >= 0, Int)  # Number of functions installed on node
+    @variable(mp_h, select_edge[1:nb_nodes, 1:nb_nodes, 1:nb_comm, 1:nb_func + 1], Bin)  # flow on edge for given commodity and stage
+    @variable(mp_h, exec_func[1:nb_nodes, 1:nb_comm, 0:nb_func + 1], Bin)  # 1 if function executed on node for given commodity
 
-    @objective(  # Minimize opening and intallation cost
-        model, Min,
-        sum(open_cost[i] * open_node[i] for i in 1:nb_nodes) + sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func)
-    )
+    @expression(mp_h, node_open_cost,sum(open_cost[i] * open_node[i] for i in 1:nb_nodes) )
+    @expression(mp_h, func_install_cost,sum(func_cost[i, f] * nb_functions[i, f] for i in 1:nb_nodes, f in 1:nb_func))
 
-    @constraint(  # Max latency on each commodity
-        model, [comm = 1:nb_comm],
-        sum(
-            latency[i][j] * select_edge[i, j, comm, stage]
-            for stage in 1:length(func_per_comm[comm]) + 1, i in 1:nb_nodes, j in 1:nb_nodes if latency[i][j] > 0
-        ) <= max_latency[comm]
-    )
+    # Minimize opening and intallation cost
+    @objective(  mp_h, Min,node_open_cost + func_install_cost)
 
-    @constraint(  # Flow constraint
-        model, [i = 1:nb_nodes, comm = 1:nb_comm, stage = 1:length(func_per_comm[comm]) + 1],
-        sum(select_edge[j, i, comm, stage] for j in 1:nb_nodes if latency[j][i] > 0)
-        - sum(select_edge[i, j, comm, stage] for j in 1:nb_nodes if latency[i][j] > 0)
-        == exec_func[i, comm, func_per_comm_[comm][stage + 1]] - exec_func[i, comm, func_per_comm_[comm][stage]]
-    )
+    # Max latency on each commodity
+    @constraint(mp_h, [comm = 1:nb_comm],sum(latency[i, j] * select_edge[i, j, comm, stage] for stage in 1:length(func_per_comm[comm]) + 1, i in 1:nb_nodes, j in 1:nb_nodes if latency[i, j] > 0) <= max_latency[comm])
+    # Flow constraint
+    @constraint(mp_h, [i = 1:nb_nodes, comm = 1:nb_comm, stage = 1:length(func_per_comm[comm]) + 1],sum(select_edge[j, i, comm, stage] for j in 1:nb_nodes if latency[j, i] > 0)- sum(select_edge[i, j, comm, stage] for j in 1:nb_nodes if latency[i, j] > 0)== exec_func[i, comm, stage] - exec_func[i, comm, stage - 1])
+    # Execute each function once
+    @constraint(mp_h, [comm = 1:nb_comm, stage = 1:length(func_per_comm[comm])],sum(exec_func[i, comm, stage] for i in 1:nb_nodes) == 1)
+    # Fictive function on source
+    @constraint(mp_h, [comm = 1:nb_comm],exec_func[source[comm], comm, 0] == 1)
+    # Fictive function on sink
+    @constraint(mp_h, [comm = 1:nb_comm],exec_func[sink[comm], comm, length(func_per_comm[comm])] == 1)
+    # Exclusion constraint
+    @constraint( mp_h, [i = 1:nb_nodes, comm = 1:nb_comm, stage_k = 1:length(func_per_comm[comm]), stage_l = 1:length(func_per_comm[comm]);exclusion[comm][func_per_comm[comm][stage_k]][func_per_comm[comm][stage_l]] == 1],exec_func[i, comm, stage_k] + exec_func[i, comm, stage_l] <= 1)
+    # Limit on function capacity
+    #@constraint(mp_h, [i = 1:nb_nodes, f = 1:nb_func],sum(sum(bandwidth[comm] * exec_func[i, comm, stage] for stage in 1:length(func_per_comm[comm]) if func_per_comm[comm][stage] == f) for comm in 1:nb_comm    ) <= capacity[f] * nb_functions[i, f])
+    # Install functions on open nodes
+    @constraint(mp_h, [i = 1:nb_nodes],sum(nb_functions[i, f] for f in 1:nb_func) <= max_func[i] * open_node[i])
 
-    println(exec_func, nb_comm, func_per_comm)
-    for comm in 1:nb_comm
-        for f = func_per_comm[comm]
-            @constraint(  # Execute each function once
-                model, sum(exec_func[1:nb_nodes, comm, f] for i in 1:nb_nodes) == 1
-            )
+    optimize!(mp_h)
+end
+
+mp_heuristic()
+
+# Print results
+println("Objective: opening nodes " * string(value(node_open_cost)) * ", installing functions " * string(value(func_install_cost)) * ", total " * string(value(node_open_cost + func_install_cost)))
+for comm in 1:nb_comm
+    print("commodity " * string(comm) * ": ")
+
+    for stage in 1:length(func_per_comm[comm]) + 1
+
+        stage_start = -1
+        stage_end = -1
+        for i in 1:nb_nodes
+            if round(Int, value(exec_func[i, comm, stage - 1])) == 1
+                stage_start = i
+            end
+            if round(Int, value(exec_func[i, comm, stage])) == 1
+                stage_end = i
+            end
+        end
+        if stage == 1
+            print(string(stage_start))
+        end
+
+        current_pos = stage_start
+        while current_pos != stage_end
+            for next_pos in 1:nb_nodes
+                if round(Int, value(select_edge[current_pos, next_pos, comm, stage])) == 1
+                    print(" -> ")
+                    print(string(next_pos))
+                    current_pos = next_pos
+                    break
+                end
+            end
+        end
+
+        if stage != length(func_per_comm[comm]) + 1
+            print("(f" * string(func_per_comm[comm][stage]) * ")")
         end
     end
 
+    print("\n")
+end
+for i in 1:nb_nodes
+    if round(Int, value(open_node[i])) == 1
+        print("node " * string(i) * ":")
 
-
-    @constraint(  # Fictive function on source
-        model, [comm = 1:nb_comm],
-        exec_func[source[comm], comm, 0] == 1
-    )
-
-    @constraint(  # Fictivve function on sink
-        model, [comm = 1:nb_comm],
-        exec_func[sink[comm], comm, nb_func + 1] == 1
-    )
-
-    @constraint(  # Exclusion constraint
-        model, [i = 1:nb_nodes, comm = 1:nb_comm, f = func_per_comm[comm], g = func_per_comm[comm]; exclusion[comm][f][g] == 1],
-        exec_func[i, comm, f] + exec_func[i, comm, g] <= 1
-    )
-
-    @constraint(  # Limit on function capacity
-        model, [i = 1:nb_nodes, f = 1:nb_func],
-        sum(bandwidth[comm] * exec_func[i, comm, f] for comm in 1:nb_comm) <= capacity[f] * nb_functions[i, f]
-    )
-
-    @constraint(  # Install functions on open nodes
-        model, [i = 1:nb_nodes],
-        sum(nb_functions[i, f] for f in 1:nb_func) <= max_func[i] * open_node[i]
-    )
-
-    optimize!(model)
-
-    # Print results
-    for comm in 1:nb_comm
-        print("commodity " * string(comm) * ": ")
-
-        for stage in 1:length(func_per_comm[comm]) + 1
-
-            stage_start = -1
-            stage_end = -1
-            for i in 1:nb_nodes
-                if value(exec_func[i, comm, func_per_comm_[comm][stage]]) == 1
-                    stage_start = i
-                end
-                if value(exec_func[i, comm, func_per_comm_[comm][stage + 1]]) == 1
-                    stage_end = i
-                end
-            end
-            if stage == 1
-                print(string(stage_start))
-            end
-
-            current_pos = stage_start
-            while current_pos != stage_end
-                for next_pos in 1:nb_nodes
-                    if value(select_edge[current_pos, next_pos, comm, stage]) == 1
-                        print(" -> ")
-                        print(string(next_pos))
-                        current_pos = next_pos
-                        break
-                    end
-                end
-            end
-
-            if stage != length(func_per_comm[comm]) + 1
-                print("(f" * string(func_per_comm_[comm][stage + 1]) * ")")
-            end
+        for f in 1:nb_func
+            print(" f" * string(f) * " * " * string(round(Int, value(nb_functions[i, f]))) * ",")
         end
 
         print("\n")
     end
-    for i in 1:nb_nodes
-        if value(open_node[i]) == 1
-            print("node " * string(i) * ":")
-
-            for f in 1:nb_func
-                print(" f" * string(f) * " * " * string(Int(value(nb_functions[i, f]))) * ",")
-            end
-
-            print("\n")
-        end
-    end
-
 end
-
-main(ARGS[1])

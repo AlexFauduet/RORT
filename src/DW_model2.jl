@@ -8,26 +8,27 @@ file_name = ARGS[1]
 global nb_func,Function     = get_data("../instances/"*file_name*"Functions.txt",2)
 global nb_func = Int(nb_func)
 global nb_comm,Affinity   = get_data("../instances/"*file_name*"Affinity.txt", nb_func)
-global useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
+if file_name == "test1_"
+    Fct_commod = [0]
+    global func_per_comm = [[1, 2, 3], [2, 1]]
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+elseif file_name == "grille2x3_"
+    Fct_commod = [0]
+    global func_per_comm = [[1], [1, 2], [1,2]]
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+else
+    useless,Fct_commod = get_data("../instances/"*file_name*"Fct_commod.txt" , nb_func)
+    dim1 = size(Fct_commod)[1]
+    dim2 = size(Fct_commod)[2]
+    global func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
+    #println(func_per_comm)
+    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
+end
 global useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
 global nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
 
 # Precision for adding DW variables
 global const eps = 0.0001
-
-dim1 = size(Fct_commod)[1]
-dim2 = size(Fct_commod)[2]
-global func_per_comm = [[Fct_commod[i,j] for j in 1:dim2] for i in 1:dim1]
-#println(func_per_comm)
-global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
-
-if -1 in Fct_commod
-    println("probleme sur l'instance Fct_commod")
-end
-if file_name == "test1_"
-    global func_per_comm = [[1, 2, 3], [2, 1]]
-    global func_per_comm_ = [cat(cat([0], func_per_comm[comm], dims=1), [nb_func + 1], dims=1) for comm in 1:nb_comm]
-end
 
 global source = [Commodity[c,1]+1 for c in 1:nb_comm]
 global sink = [Commodity[c,2]+1 for c in 1:nb_comm]
