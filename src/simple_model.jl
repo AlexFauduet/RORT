@@ -26,13 +26,6 @@ function main(file_name :: String)
     useless,Commodity  = get_data("../instances/"*file_name*"Commodity.txt" , nb_func)
     nb_nodes,nb_arcs,Arc      = get_data("../instances/"*file_name*"Graph.txt" , nb_func)
 
-    println("Function : ", Function)
-    println("Affinity  : ",Affinity )
-    println("nb_func : ",nb_func)
-    println("Fct_commod : ",Fct_commod )
-    println("Commodity  : ", Commodity )
-    println("Arc : ",Arc)
-
     if -1 in Fct_commod 
         println("probleme sur l'instance Fct_commod")
     end
@@ -66,11 +59,6 @@ function main(file_name :: String)
             exclusion[i][Int(Affinity[i,1])][Int(Affinity[i,2])] = 1
         end        
     end
-
-    println(nb_comm,nb_nodes,nb_func)
-    println(func_per_comm,source,sink)
-    println(open_cost,func_cost,latency,max_latency,bandwidth,capacity,max_func)
-    println(exclusion)
 
     # Defining model
     model = Model(CPLEX.Optimizer)
